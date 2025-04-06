@@ -13,7 +13,8 @@ import axiosInstance from "@/lib/axiosInstance";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Pusher from "pusher-js/react-native";
 import Echo from "laravel-echo";
-import { token } from "@/lib/axiosInstance";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getEcho } from "@/hooks/useEchoClient";
 
 const Chat = () => {
   const [data, setData] = useState<any[]>([]);
@@ -49,42 +50,25 @@ const Chat = () => {
   }, []);
 
   useEffect(() => {
-    // Pusher.logToConsole = true;
+    let echo: Echo<any> | null = null;
 
-    const PusherClient = new Pusher("g604hzvvdj4f3srgnpbb", {
-      cluster: "mt1", // tetap isi walaupun tidak dipakai
-      wsHost: "reverb.bogordev.my.id",
-      wsPort: 443,
-      wssPort: 443,
-      forceTLS: true,
-      enabledTransports: ["ws", "wss"], // biar fleksibel
-      disableStats: true,
-      authEndpoint: "https://app.bogordev.my.id/broadcasting/auth",
-      auth: {
-        headers: {
-          Authorization: `Bearer ${token}`, // token user
-          Accept: "application/json",
-        },
-      },
-    });
+    const setupEcho = async () => {
+      echo = await getEcho();
 
-    let echo = new Echo({
-      broadcaster: "reverb",
-      client: PusherClient,
-    });
+      echo
+        .private("conversation.1")
+        .listen("MessageSent", (e: any) => {
+          setData((prev) => [...prev, e.message]);
+        })
+        .error((err: any) => {
+          console.error(err);
+        });
+    };
 
-    echo
-      .private("conversation.1")
-      .listen("MessageSent", (e) => {
-        // console.log(e);
-        setData((prev) => [...prev, e.message]);
-      })
-      .error((e) => {
-        console.error(e);
-      });
+    setupEcho();
 
     return () => {
-      echo.leave("conversation.1");
+      if (echo) echo.leave("conversation.1");
     };
   }, []);
 
